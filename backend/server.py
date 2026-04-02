@@ -403,6 +403,99 @@ try:
 except Exception as e:
     print(f"[Routes] Trading Terminal Live not available: {e}")
 
+# Terminal State Orchestrator (UNIFIED API - Phase T2)
+try:
+    from modules.trading_terminal.terminal_state.terminal_state_routes import router as terminal_state_router
+    app.include_router(terminal_state_router)
+    print("[Routes] Terminal State Orchestrator registered")
+except Exception as e:
+    print(f"[Routes] Terminal State Orchestrator not available: {e}")
+
+# =====================================================
+# TRADING TERMINAL INTERNAL SERVICES (RAW APIs)
+# These are INTERNAL - UI should use /api/terminal/state
+# =====================================================
+
+# TR1 - Account Manager
+try:
+    from modules.trading_terminal.accounts.account_routes import router as accounts_router
+    app.include_router(accounts_router)
+    print("[Routes] TR1 Account Manager registered")
+except Exception as e:
+    print(f"[Routes] TR1 Account Manager not available: {e}")
+
+# TR3 - Trade Monitor
+try:
+    from modules.trading_terminal.trades.trade_routes import router as trades_router
+    app.include_router(trades_router)
+    print("[Routes] TR3 Trade Monitor registered")
+except Exception as e:
+    print(f"[Routes] TR3 Trade Monitor not available: {e}")
+
+# TR4 - Risk Dashboard
+try:
+    from modules.trading_terminal.risk.risk_routes import router as risk_router
+    app.include_router(risk_router)
+    print("[Routes] TR4 Risk Dashboard registered")
+except Exception as e:
+    print(f"[Routes] TR4 Risk Dashboard not available: {e}")
+
+# TR5 - Strategy Control
+try:
+    from modules.trading_terminal.strategy_control.control_routes import router as strategy_control_router
+    app.include_router(strategy_control_router)
+    print("[Routes] TR5 Strategy Control registered")
+except Exception as e:
+    print(f"[Routes] TR5 Strategy Control not available: {e}")
+
+# TR6 - Dashboard
+try:
+    from modules.trading_terminal.dashboard.dashboard_routes import router as dashboard_router
+    app.include_router(dashboard_router)
+    print("[Routes] TR6 Dashboard registered")
+except Exception as e:
+    print(f"[Routes] TR6 Dashboard not available: {e}")
+
+# State Reconciliation
+try:
+    from modules.trading_terminal.reconciliation.recon_routes import router as recon_router
+    app.include_router(recon_router)
+    print("[Routes] State Reconciliation registered")
+except Exception as e:
+    print(f"[Routes] State Reconciliation not available: {e}")
+
+# Operations - Capital
+try:
+    from modules.trading_terminal.operations.capital.capital_routes import router as capital_router
+    app.include_router(capital_router)
+    print("[Routes] Ops Capital registered")
+except Exception as e:
+    print(f"[Routes] Ops Capital not available: {e}")
+
+# Operations - Forensics
+try:
+    from modules.trading_terminal.operations.forensics.forensics_routes import router as forensics_router
+    app.include_router(forensics_router)
+    print("[Routes] Ops Forensics registered")
+except Exception as e:
+    print(f"[Routes] Ops Forensics not available: {e}")
+
+# Operations - Lifecycle
+try:
+    from modules.trading_terminal.operations.lifecycle.lifecycle_routes import router as lifecycle_router
+    app.include_router(lifecycle_router)
+    print("[Routes] Ops Lifecycle registered")
+except Exception as e:
+    print(f"[Routes] Ops Lifecycle not available: {e}")
+
+# Operations - Positions
+try:
+    from modules.trading_terminal.operations.positions.position_routes import router as positions_router
+    app.include_router(positions_router)
+    print("[Routes] Ops Positions registered")
+except Exception as e:
+    print(f"[Routes] Ops Positions not available: {e}")
+
 
 # PHASE F3 — System Control Routes
 try:
