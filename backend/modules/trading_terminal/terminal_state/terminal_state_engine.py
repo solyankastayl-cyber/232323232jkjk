@@ -121,12 +121,18 @@ class TerminalStateEngine:
         # Add timeframe to execution for consistency
         execution["timeframe"] = timeframe
         
+        # Get execution status from execution engine
+        execution_status = await self._safe_get(self._get_execution_status, symbol, timeframe)
+        orders_preview = await self._safe_get(self._get_orders_preview, symbol)
+        
         state = {
             "symbol": symbol,
             "timeframe": timeframe,  # System-level timeframe
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "decision": decision,
             "execution": execution,
+            "execution_status": execution_status if isinstance(execution_status, dict) else self._default_execution_status(),
+            "orders_preview": orders_preview if isinstance(orders_preview, list) else [],
             "micro": micro,
             "position": position,
             "portfolio": portfolio,
@@ -134,6 +140,9 @@ class TerminalStateEngine:
             "strategy": strategy,
             "system": system
         }
+        
+        # Update execution intent based on decision
+        await self._update_execution_intent(symbol, timeframe, decision, execution, state)
         
         # Run validation layer with live price
         try:
@@ -460,6 +469,71 @@ class TerminalStateEngine:
             "last_rollback": None,
             "data_source": "offline"
         }
+    
+    def _default_execution_status(self) -> Dict[str, Any]:
+        return {
+            "execution_state": "IDLE",
+            "intent_state": "IDLE",
+            "order_present": False,
+            "position_open": False,
+            "order_id": None,
+            "filled_pct": 0.0,
+            "status_label": "Idle",
+            "status_reason": "no active execution intent"
+        }
+    
+    # =========================================
+    # EXECUTION STATUS GETTERS
+    # =========================================
+    
+    async def _get_execution_status(self, symbol: str, timeframe: str = "4H") -> Dict[str, Any]:
+        """Get execution status from execution engine"""
+        try:
+            from ..execution.execution_state_engine import get_execution_engine
+            engine = get_execution_engine()
+            return engine.build_status_summary(symbol, timeframe)
+        except Exception as e:
+            logger.warning(f"[ExecutionStatus] Error: {e}")
+        return self._default_execution_status()
+    
+    async def _get_orders_preview(self, symbol: str) -> list:
+        """Get orders preview from execution engine"""
+        try:
+            from ..execution.execution_state_engine import get_execution_engine
+            engine = get_execution_engine()
+            return engine.get_orders_preview(symbol, limit=5)
+        except Exception as e:
+            logger.warning(f"[OrdersPreview] Error: {e}")
+        return []
+    
+    async def _update_execution_intent(
+        self, 
+        symbol: str, 
+        timeframe: str, 
+        decision: Dict, 
+        execution: Dict,
+        state: Dict
+    ):
+        """Update execution intent based on current decision"""
+        try:
+            from ..execution.execution_state_engine import get_execution_engine
+            engine = get_execution_engine()
+            
+            validation = state.get("validation", {"is_valid": True})
+            position = state.get("position", {"has_position": False})
+            
+            # Only update if we have meaningful data
+            if decision.get("action") and execution.get("entry"):
+                engine.build_or_update_intent(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    decision=decision,
+                    execution=execution,
+                    validation=validation,
+                    position=position
+                )
+        except Exception as e:
+            logger.warning(f"[UpdateIntent] Error: {e}")
 
 
 # Global singleton instance

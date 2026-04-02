@@ -411,6 +411,14 @@ try:
 except Exception as e:
     print(f"[Routes] Terminal State Orchestrator not available: {e}")
 
+# Execution State Engine (Phase TT1 - Orders & Execution)
+try:
+    from modules.trading_terminal.execution.execution_routes import router as execution_router
+    app.include_router(execution_router)
+    print("[Routes] Execution State Engine registered")
+except Exception as e:
+    print(f"[Routes] Execution State Engine not available: {e}")
+
 # =====================================================
 # TRADING TERMINAL INTERNAL SERVICES (RAW APIs)
 # These are INTERNAL - UI should use /api/terminal/state

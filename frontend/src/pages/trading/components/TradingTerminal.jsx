@@ -89,6 +89,8 @@ const TradingTerminal = () => {
 
   const decision = state?.decision || {};
   const execution = state?.execution || {};
+  const executionStatus = state?.execution_status || {};
+  const ordersPreview = state?.orders_preview || [];
   const micro = state?.micro || {};
   const position = state?.position || {};
   const portfolio = state?.portfolio || {};
@@ -342,6 +344,11 @@ const TradingTerminal = () => {
               </div>
             </div>
 
+            {/* Execution Status Block */}
+            <div className="lg:col-span-4">
+              <ExecutionStatusBlock executionStatus={executionStatus} />
+            </div>
+
             {/* Position Block */}
             <div className="lg:col-span-4 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="position-block">
               <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Position</h2>
@@ -419,6 +426,18 @@ const TradingTerminal = () => {
                   <div className={`text-sm font-bold mt-1 ${risk.kill_switch ? 'text-red-600' : 'text-green-600'}`}>
                     {risk.kill_switch ? 'ON' : 'OFF'}
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Orders Tab - Full Width */}
+            <div className="lg:col-span-12">
+              <div className="bg-white border border-gray-200 rounded-sm shadow-sm">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase">Orders</h2>
+                </div>
+                <div className="p-0">
+                  <OrdersTab orders={ordersPreview} />
                 </div>
               </div>
             </div>
@@ -500,6 +519,143 @@ const ValidationBlock = ({ validation }) => {
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+// Execution Status Block Component
+const ExecutionStatusBlock = ({ executionStatus, onPlaceOrder }) => {
+  const stateColors = {
+    IDLE: 'bg-gray-100 text-gray-700',
+    WAITING_ENTRY: 'bg-amber-100 text-amber-700',
+    READY_TO_PLACE: 'bg-green-100 text-green-700',
+    ORDER_PLANNED: 'bg-blue-100 text-blue-700',
+    ORDER_PLACED: 'bg-blue-500 text-white',
+    PARTIAL_FILL: 'bg-purple-500 text-white',
+    FILLED: 'bg-green-600 text-white',
+    CANCELLED: 'bg-gray-400 text-white',
+    REJECTED: 'bg-red-500 text-white',
+    EXPIRED: 'bg-gray-500 text-white',
+    CLOSED: 'bg-gray-600 text-white',
+  };
+  
+  const state = executionStatus.execution_state || 'IDLE';
+  const filledPct = (executionStatus.filled_pct || 0) * 100;
+  
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="execution-status-block">
+      <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">
+        Execution Status
+      </h2>
+      
+      {/* State Badge */}
+      <div className={`inline-block px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider mb-4 ${stateColors[state] || stateColors.IDLE}`}>
+        {executionStatus.status_label || state}
+      </div>
+      
+      {/* Progress bar for fills */}
+      {(state === 'ORDER_PLACED' || state === 'PARTIAL_FILL') && (
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <span>Fill Progress</span>
+            <span className="font-bold">{filledPct.toFixed(1)}%</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 transition-all duration-300"
+              style={{ width: `${filledPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Status Details */}
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-500">Intent State</span>
+          <span className="font-medium">{executionStatus.intent_state || 'IDLE'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">Order Present</span>
+          <span className={`font-medium ${executionStatus.order_present ? 'text-green-600' : 'text-gray-400'}`}>
+            {executionStatus.order_present ? 'Yes' : 'No'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">Position Open</span>
+          <span className={`font-medium ${executionStatus.position_open ? 'text-blue-600' : 'text-gray-400'}`}>
+            {executionStatus.position_open ? 'Yes' : 'No'}
+          </span>
+        </div>
+      </div>
+      
+      {/* Reason */}
+      {executionStatus.status_reason && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <span className="text-xs text-gray-500 block">Reason</span>
+          <span className="text-sm text-gray-700">{executionStatus.status_reason}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Orders Tab Component
+const OrdersTab = ({ orders }) => {
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-sm p-6 text-center text-gray-500">
+        <div className="text-sm">No orders yet</div>
+      </div>
+    );
+  }
+  
+  const statusColors = {
+    ORDER_PLACED: 'text-blue-600',
+    PARTIAL_FILL: 'text-purple-600',
+    FILLED: 'text-green-600',
+    CANCELLED: 'text-gray-500',
+    REJECTED: 'text-red-600',
+  };
+  
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm overflow-hidden" data-testid="orders-tab">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Order ID</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Symbol</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Side</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Size</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Filled</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {orders.map((order, idx) => (
+            <tr key={order.order_id || idx} className="hover:bg-gray-50">
+              <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                {order.order_id?.slice(0, 8)}...
+              </td>
+              <td className="px-4 py-3 font-semibold">{order.symbol}</td>
+              <td className={`px-4 py-3 font-semibold ${order.side === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>
+                {order.side}
+              </td>
+              <td className={`px-4 py-3 font-medium ${statusColors[order.status] || 'text-gray-600'}`}>
+                {order.status}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                ${order.price?.toLocaleString()}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">{order.size}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium">
+                {((order.filled_pct || 0) * 100).toFixed(1)}%
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
