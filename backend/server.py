@@ -395,6 +395,15 @@ try:
 except Exception as e:
     print(f"[Routes] Broker Adapters not available: {e}")
 
+# Trading Terminal Live Routes (Phase 5.1)
+try:
+    from modules.trading_terminal.live.terminal_routes import router as terminal_live_router
+    app.include_router(terminal_live_router)
+    print("[Routes] Trading Terminal Live router registered")
+except Exception as e:
+    print(f"[Routes] Trading Terminal Live not available: {e}")
+
+
 # PHASE F3 — System Control Routes
 try:
     from modules.system_control.control_routes import router as control_router

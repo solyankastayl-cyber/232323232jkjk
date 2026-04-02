@@ -369,6 +369,9 @@ const EntityDetail = lazy(() => import("./pages/EntityTerminal"));
 const SignalSnapshot = lazy(() => import("./pages/SignalSnapshot"));
 const ActorProfile = lazy(() => import("./pages/ActorProfile"));
 
+// Trading Terminal - Isolated standalone page (no AppLayout)
+const TradingPage = lazy(() => import("./pages/trading"));
+
 function App() {
   const { data } = useDashboard(1, 1); // Fetch only for globalState
 
@@ -527,6 +530,9 @@ function App() {
               
               {/* Legal Pages (Chrome Web Store compliance) */}
               <Route path="/privacy/chrome-extension" element={<ChromeExtensionPrivacyPage />} />
+              
+              {/* Trading Terminal - Standalone isolated page (no AppLayout, own auth) */}
+              <Route path="/trading" element={<TradingPage />} />
               
               {/* DECOMMISSIONED: Market sub-routes redirect to Onchain Intelligence */}
               <Route path="/market/signals/:asset" element={<Navigate to="/intelligence/onchain-v3?tab=signals" replace />} />
