@@ -29,6 +29,8 @@ const TradingTerminal = () => {
   const [connected, setConnected] = useState(true);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [dataSource, setDataSource] = useState('mock'); // 'mock' | 'REST' | 'WebSocket'
+  const [isLive, setIsLive] = useState(false);
 
   // Fetch decision data
   const fetchDecision = useCallback(async () => {
@@ -39,6 +41,8 @@ const TradingTerminal = () => {
         setDecision(data.data);
         setLastUpdate(new Date());
         setConnected(true);
+        setIsLive(data.live || false);
+        setDataSource(data.source || (data.live ? 'REST' : 'mock'));
       }
     } catch (error) {
       console.error('Decision fetch error:', error);
@@ -133,6 +137,11 @@ const TradingTerminal = () => {
               {connected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
+          {connected && (
+            <div className="mt-1 text-xs text-gray-500 hidden lg:block">
+              Source: {dataSource}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -149,6 +158,14 @@ const TradingTerminal = () => {
                 Last: {lastUpdate?.toLocaleTimeString()}
               </span>
             )}
+            {/* Data Source Badge */}
+            <span className={`text-xs px-2 py-0.5 rounded ${
+              isLive 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              {isLive ? 'LIVE' : 'SIMULATION'}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <button 
