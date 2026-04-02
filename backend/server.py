@@ -419,6 +419,14 @@ try:
 except Exception as e:
     print(f"[Routes] Execution State Engine not available: {e}")
 
+# Position Manager (Phase TT2 - Positions)
+try:
+    from modules.trading_terminal.positions.position_routes import router as position_router
+    app.include_router(position_router)
+    print("[Routes] Position Manager registered")
+except Exception as e:
+    print(f"[Routes] Position Manager not available: {e}")
+
 # =====================================================
 # TRADING TERMINAL INTERNAL SERVICES (RAW APIs)
 # These are INTERNAL - UI should use /api/terminal/state

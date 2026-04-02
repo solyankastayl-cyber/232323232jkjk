@@ -91,6 +91,7 @@ const TradingTerminal = () => {
   const execution = state?.execution || {};
   const executionStatus = state?.execution_status || {};
   const ordersPreview = state?.orders_preview || [];
+  const positionsPreview = state?.positions_preview || [];
   const micro = state?.micro || {};
   const position = state?.position || {};
   const portfolio = state?.portfolio || {};
@@ -349,31 +350,9 @@ const TradingTerminal = () => {
               <ExecutionStatusBlock executionStatus={executionStatus} />
             </div>
 
-            {/* Position Block */}
-            <div className="lg:col-span-4 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="position-block">
-              <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Position</h2>
-              {position.has_position ? (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className={`text-xs font-bold px-2 py-1 rounded ${position.side === 'LONG' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {position.side}
-                    </span>
-                    <span className="text-sm font-bold">{position.size} {symbol.replace('USDT', '')}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Entry</span>
-                    <span className="font-medium">${position.entry?.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">PnL</span>
-                    <span className={`font-bold ${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {position.pnl >= 0 ? '+' : ''}${position.pnl?.toFixed(2)} ({position.pnl_pct?.toFixed(2)}%)
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-gray-400 text-sm text-center py-4">No open position</div>
-              )}
+            {/* Position Status Block - Using new component */}
+            <div className="lg:col-span-4">
+              <PositionStatusBlock position={position} />
             </div>
 
             {/* Portfolio Block */}
@@ -595,6 +574,111 @@ const ExecutionStatusBlock = ({ executionStatus, onPlaceOrder }) => {
           <span className="text-xs text-gray-500 block">Reason</span>
           <span className="text-sm text-gray-700">{executionStatus.status_reason}</span>
         </div>
+      )}
+    </div>
+  );
+};
+
+// Position Status Block Component
+const PositionStatusBlock = ({ position }) => {
+  const healthColors = {
+    GOOD: 'bg-green-100 text-green-700 border-green-200',
+    WARNING: 'bg-amber-100 text-amber-700 border-amber-200',
+    CRITICAL: 'bg-red-100 text-red-700 border-red-200',
+  };
+  
+  const statusColors = {
+    OPEN: 'bg-blue-500 text-white',
+    OPENING: 'bg-blue-400 text-white',
+    SCALING: 'bg-purple-500 text-white',
+    REDUCING: 'bg-amber-500 text-white',
+    CLOSING: 'bg-orange-500 text-white',
+    CLOSED: 'bg-gray-500 text-white',
+    FLAT: 'bg-gray-200 text-gray-600',
+  };
+  
+  const hasPosition = position?.has_position;
+  const pnl = position?.unrealized_pnl || 0;
+  const pnlPct = position?.pnl_pct || 0;
+  const health = position?.health || 'GOOD';
+  const status = position?.status || 'FLAT';
+  
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="position-status-block">
+      <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">
+        Position
+      </h2>
+      
+      {!hasPosition ? (
+        <div className="text-center py-4">
+          <span className={`inline-block px-3 py-1.5 rounded text-xs font-bold uppercase ${statusColors.FLAT}`}>
+            FLAT
+          </span>
+          <p className="text-sm text-gray-500 mt-2">No open position</p>
+        </div>
+      ) : (
+        <>
+          {/* Status + Health Badges */}
+          <div className="flex gap-2 mb-4">
+            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${statusColors[status] || statusColors.OPEN}`}>
+              {status}
+            </span>
+            <span className={`px-2 py-1 rounded text-xs font-bold uppercase border ${healthColors[health] || healthColors.GOOD}`}>
+              {health}
+            </span>
+          </div>
+          
+          {/* Side + Size */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className={`text-lg font-bold ${position.side === 'LONG' ? 'text-green-600' : 'text-red-600'}`}>
+              {position.side}
+            </span>
+            <span className="text-lg font-semibold text-gray-900">
+              {position.size} {position.symbol?.replace('USDT', '')}
+            </span>
+          </div>
+          
+          {/* PnL */}
+          <div className={`p-3 rounded mb-4 ${pnl >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+            <div className="text-xs text-gray-500 mb-1">Unrealized PnL</div>
+            <div className={`text-xl font-bold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {pnl >= 0 ? '+' : ''}{pnl.toLocaleString()} USD
+            </div>
+            <div className={`text-sm font-medium ${pnlPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+            </div>
+          </div>
+          
+          {/* Entry/Mark/Levels */}
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Entry</span>
+              <span className="font-medium tabular-nums">${position.entry_price?.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Mark</span>
+              <span className="font-medium tabular-nums">${position.mark_price?.toLocaleString()}</span>
+            </div>
+            {position.stop && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Stop</span>
+                <span className="font-medium text-red-600 tabular-nums">${position.stop?.toLocaleString()}</span>
+              </div>
+            )}
+            {position.target && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Target</span>
+                <span className="font-medium text-green-600 tabular-nums">${position.target?.toLocaleString()}</span>
+              </div>
+            )}
+            {position.rr && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">R:R</span>
+                <span className="font-semibold">{position.rr}</span>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

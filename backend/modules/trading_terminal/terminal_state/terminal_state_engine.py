@@ -100,7 +100,7 @@ class TerminalStateEngine:
             self._safe_get(self._get_decision, symbol, timeframe),
             self._safe_get(self._get_execution, symbol, timeframe),
             self._safe_get(self._get_micro, symbol),
-            self._safe_get(self._get_position, symbol),
+            self._safe_get(self._get_position, symbol, timeframe),
             self._safe_get(self._get_portfolio, symbol),
             self._safe_get(self._get_risk, symbol),
             self._safe_get(self._get_strategy, symbol),
@@ -125,6 +125,9 @@ class TerminalStateEngine:
         execution_status = await self._safe_get(self._get_execution_status, symbol, timeframe)
         orders_preview = await self._safe_get(self._get_orders_preview, symbol)
         
+        # Get positions preview from position engine
+        positions_preview = await self._safe_get(self._get_positions_preview, symbol)
+        
         state = {
             "symbol": symbol,
             "timeframe": timeframe,  # System-level timeframe
@@ -133,8 +136,9 @@ class TerminalStateEngine:
             "execution": execution,
             "execution_status": execution_status if isinstance(execution_status, dict) else self._default_execution_status(),
             "orders_preview": orders_preview if isinstance(orders_preview, list) else [],
-            "micro": micro,
             "position": position,
+            "positions_preview": positions_preview if isinstance(positions_preview, list) else [],
+            "micro": micro,
             "portfolio": portfolio,
             "risk": risk,
             "strategy": strategy,
@@ -284,8 +288,19 @@ class TerminalStateEngine:
         
         return self._default_micro()
     
-    async def _get_position(self, symbol: str) -> Dict[str, Any]:
-        """Get position for symbol"""
+    async def _get_position(self, symbol: str, timeframe: str = "4H") -> Dict[str, Any]:
+        """Get position for symbol from Position Engine"""
+        try:
+            # Try new Position Engine first (TT2)
+            from ..positions.position_engine import get_position_engine
+            engine = get_position_engine()
+            summary = engine.build_position_summary(symbol, timeframe)
+            if summary.get("has_position"):
+                return summary
+        except Exception as e:
+            logger.warning(f"[Position] TT2 Engine error: {e}")
+        
+        # Fallback to legacy terminal routes
         try:
             from ..live.terminal_routes import get_positions
             response = await get_positions()
@@ -300,18 +315,29 @@ class TerminalStateEngine:
                             "symbol": pos.get("symbol"),
                             "side": pos.get("side"),
                             "size": pos.get("size", 0),
-                            "entry": pos.get("entry_price"),
-                            "mark": pos.get("current_price"),
-                            "pnl": pos.get("pnl_usd", 0),
+                            "entry_price": pos.get("entry_price"),
+                            "mark_price": pos.get("current_price"),
+                            "unrealized_pnl": pos.get("pnl_usd", 0),
                             "pnl_pct": pos.get("pnl_percent", 0),
-                            "stop": None,  # Would come from position service
+                            "stop": None,
                             "target": None,
-                            "status": pos.get("status", "UNKNOWN")
+                            "health": "GOOD",
+                            "status": pos.get("status", "OPEN")
                         }
         except Exception as e:
-            logger.warning(f"[Position] Error: {e}")
+            logger.warning(f"[Position] Legacy error: {e}")
         
         return self._default_position(symbol)
+    
+    async def _get_positions_preview(self, symbol: str) -> list:
+        """Get positions preview from Position Engine"""
+        try:
+            from ..positions.position_engine import get_position_engine
+            engine = get_position_engine()
+            return engine.get_positions_preview(symbol, limit=5)
+        except Exception as e:
+            logger.warning(f"[PositionsPreview] Error: {e}")
+        return []
     
     async def _get_portfolio(self, symbol: str) -> Dict[str, Any]:
         """Get portfolio summary"""
