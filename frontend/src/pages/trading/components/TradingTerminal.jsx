@@ -3,6 +3,7 @@ import {
   Activity, TrendingUp, Target, Layers, BarChart2, 
   RefreshCw, Wifi, WifiOff, ChevronRight
 } from 'lucide-react';
+import TradingChart from '../../../components/charts/TradingChart';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -161,17 +162,20 @@ const TradingTerminal = () => {
         {/* Grid Content */}
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-            {/* Chart Block */}
-            <div className="lg:col-span-8 lg:row-span-2 bg-white border border-gray-200 rounded-sm shadow-sm min-h-[400px] flex items-center justify-center">
-              <div className="text-center text-gray-400">
-                <BarChart2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">TradingView Chart</p>
-                <p className="text-xs text-gray-300">{symbol}</p>
-              </div>
+            
+            {/* Chart Block - FULL WIDTH */}
+            <div className="lg:col-span-12 bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
+              <TradingChart
+                symbol={symbol}
+                execution={execution}
+                decision={decision}
+                height={450}
+                showVolume={true}
+              />
             </div>
 
             {/* Decision Block */}
-            <div className="lg:col-span-4 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="decision-block">
+            <div className="lg:col-span-3 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="decision-block">
               <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Decision</h2>
               <div className="space-y-4">
                 <div className={`inline-flex px-4 py-2 rounded text-2xl font-bold tracking-tight ${DECISION_STYLES[decision.action] || 'bg-gray-200'}`}>
@@ -194,7 +198,7 @@ const TradingTerminal = () => {
             </div>
 
             {/* Why Block */}
-            <div className="lg:col-span-4 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="why-block">
+            <div className="lg:col-span-3 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="why-block">
               <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Why</h2>
               <div className="space-y-2">
                 {decision.reasons?.length > 0 ? (
@@ -211,7 +215,7 @@ const TradingTerminal = () => {
             </div>
 
             {/* Execution Block */}
-            <div className="lg:col-span-4 lg:row-span-2 bg-white border border-gray-200 rounded-sm shadow-sm border-l-4 border-l-blue-600 p-5" data-testid="execution-block">
+            <div className="lg:col-span-3 bg-white border border-gray-200 rounded-sm shadow-sm border-l-4 border-l-blue-600 p-5" data-testid="execution-block">
               <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Execution</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -255,9 +259,9 @@ const TradingTerminal = () => {
             </div>
 
             {/* Microstructure Block */}
-            <div className="lg:col-span-8 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="micro-block">
+            <div className="lg:col-span-3 bg-white border border-gray-200 rounded-sm shadow-sm p-5" data-testid="micro-block">
               <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase mb-4">Microstructure</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-3">
                 <MicroStat 
                   label="Imbalance"
                   value={`${micro.imbalance > 0 ? '+' : ''}${((micro.imbalance || 0) * 100).toFixed(1)}%`}
