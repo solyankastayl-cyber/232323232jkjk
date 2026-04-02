@@ -4,6 +4,7 @@
  * 
  * Uses lightweight-charts v5 API
  * Adds execution overlays: Entry, Stop Loss, Take Profit
+ * Supports timeframe: 1H, 4H, 1D
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -11,16 +12,25 @@ import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lig
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
-// Fetch candles - try Coinbase live first, fallback to mock
-async function fetchCandles(asset, days = 7) {
+// Timeframe to Coinbase granularity mapping
+// Note: Coinbase supports: 1m, 5m, 15m, 1h, 6h, 1d
+const TF_CONFIG = {
+  '1H': { coinbase: '1h', limit: 168, aggregate: false },  // 7 days of hourly
+  '4H': { coinbase: '6h', limit: 120, aggregate: false },  // 30 days of 6h (closest to 4h)
+  '1D': { coinbase: '1d', limit: 90, aggregate: false }    // 90 days of daily
+};
+
+// Fetch candles with timeframe support
+async function fetchCandles(asset, timeframe = '4H', days = 7) {
+  const tfConfig = TF_CONFIG[timeframe] || TF_CONFIG['4H'];
+  
   // Try Coinbase live candles first
   try {
-    const coinbaseUrl = `${API_URL}/api/provider/coinbase/candles/${asset}?timeframe=1h&limit=168`;
+    const coinbaseUrl = `${API_URL}/api/provider/coinbase/candles/${asset}?timeframe=${tfConfig.coinbase}&limit=${tfConfig.limit}`;
     const coinbaseRes = await fetch(coinbaseUrl);
     if (coinbaseRes.ok) {
       const data = await coinbaseRes.json();
       if (data.ok && data.candles && data.candles.length > 0) {
-        // Convert Coinbase format to chart format
         // Sort by timestamp ascending and deduplicate
         const seen = new Set();
         const candles = data.candles
@@ -32,36 +42,20 @@ async function fetchCandles(asset, days = 7) {
             return true;
           })
           .map(c => {
-            // Convert ms timestamp to date string YYYY-MM-DD
-            const date = new Date(c.timestamp);
-            const time = date.toISOString().split('T')[0];
+            // For lightweight-charts, use Unix timestamp in seconds
+            const timestamp = Math.floor(c.timestamp / 1000);
             return {
-              t: time,
-              o: c.open || c.o,
-              h: c.high || c.h,
-              l: c.low || c.l,
-              c: c.close || c.c,
+              time: timestamp,
+              open: c.open || c.o,
+              high: c.high || c.h,
+              low: c.low || c.l,
+              close: c.close || c.c,
               v: c.volume || c.v || 0
             };
           });
         
-        // Aggregate hourly to daily candles
-        const dailyMap = {};
-        candles.forEach(c => {
-          if (!dailyMap[c.t]) {
-            dailyMap[c.t] = { t: c.t, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v };
-          } else {
-            dailyMap[c.t].h = Math.max(dailyMap[c.t].h, c.h);
-            dailyMap[c.t].l = Math.min(dailyMap[c.t].l, c.l);
-            dailyMap[c.t].c = c.c; // Latest close
-            dailyMap[c.t].v += c.v;
-          }
-        });
-        
-        const dailyCandles = Object.values(dailyMap).sort((a, b) => a.t.localeCompare(b.t));
-        
-        if (dailyCandles.length > 0) {
-          return { ok: true, candles: dailyCandles, source: 'coinbase' };
+        if (candles.length > 0) {
+          return { ok: true, candles, source: 'coinbase', timeframe };
         }
       }
     }
@@ -74,11 +68,23 @@ async function fetchCandles(asset, days = 7) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
   const data = await res.json();
-  return { ...data, source: 'mock' };
+  
+  // Convert mock data to chart format
+  const candles = (data.candles || []).map(c => ({
+    time: c.t,  // Already in correct format
+    open: c.o,
+    high: c.h,
+    low: c.l,
+    close: c.c,
+    v: c.v || 0
+  }));
+  
+  return { ok: true, candles, source: 'mock', timeframe };
 }
 
 export default function TradingChart({
   symbol = 'BTCUSDT',
+  timeframe = '4H',
   execution = null,
   decision = null,
   height = 500,
@@ -91,6 +97,7 @@ export default function TradingChart({
   const [lastPrice, setLastPrice] = useState(null);
   const [error, setError] = useState(null);
   const [candleData, setCandleData] = useState([]);
+  const [dataSource, setDataSource] = useState('');
 
   const asset = symbol.replace('USDT', '').replace('USD', '');
 
@@ -149,13 +156,13 @@ export default function TradingChart({
     };
   }, [height]);
 
-  // Load candles
+  // Load candles with timeframe
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       try {
-        const data = await fetchCandles(asset, 7);
+        const data = await fetchCandles(asset, timeframe, 7);
         if (!mounted || !data.candles?.length) return;
 
         const candles = data.candles.map(c => ({
@@ -167,6 +174,7 @@ export default function TradingChart({
         }));
 
         setCandleData(candles);
+        setDataSource(data.source || 'unknown');
         
         const lastCandle = candles[candles.length - 1];
         setLastPrice(lastCandle.close);
@@ -177,11 +185,11 @@ export default function TradingChart({
 
         if (volumeSeriesRef.current && showVolume) {
           const volumes = data.candles.map(c => {
-            const close = c.close || c.c;
+            const close = c.close || c.open || c.c || c.o;
             const open = c.open || c.o;
             return {
               time: c.time || c.t,
-              value: c.volume || c.v || 0,
+              value: c.v || c.volume || 0,
               color: close >= open ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)',
             };
           });
@@ -199,7 +207,7 @@ export default function TradingChart({
     load();
     const interval = setInterval(load, 30000);
     return () => { mounted = false; clearInterval(interval); };
-  }, [asset, showVolume]);
+  }, [asset, timeframe, showVolume]);
 
   // Execution overlays (Entry/Stop/Target lines)
   useEffect(() => {

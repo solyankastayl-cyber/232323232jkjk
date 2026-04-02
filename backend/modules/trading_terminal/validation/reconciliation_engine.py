@@ -44,12 +44,14 @@ class ReconciliationEngine:
         results.append(self.validator.validate_micro_source(state.get("micro")))
         results.append(self.validator.validate_decision_confidence(state.get("decision"), micro_source))
         results.append(self.validator.validate_execution_levels(state.get("execution")))
+        results.append(self.validator.validate_timeframe_consistency(state))
         
         return self._aggregate(results)
 
     async def validate_terminal_state_async(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Run all validations with live price check (async version)"""
         symbol = state.get("symbol", "BTCUSDT")
+        timeframe = state.get("timeframe", "4H")
         
         # Get live market price
         live_price = await self.get_live_price(symbol)
@@ -67,11 +69,13 @@ class ReconciliationEngine:
         results.append(self.validator.validate_micro_source(state.get("micro")))
         results.append(self.validator.validate_decision_confidence(state.get("decision"), micro_source))
         results.append(self.validator.validate_execution_levels(state.get("execution")))
+        results.append(self.validator.validate_timeframe_consistency(state))
         
-        # Add live price info
+        # Add live price info and timeframe
         agg = self._aggregate(results)
         agg["live_price"] = live_price
         agg["price_source"] = "coinbase" if live_price > 0 else "mock"
+        agg["timeframe"] = timeframe
         
         return agg
 

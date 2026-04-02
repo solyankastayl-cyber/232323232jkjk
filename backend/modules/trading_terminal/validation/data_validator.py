@@ -8,6 +8,7 @@ class DataValidator:
     MAX_ENTRY_DEVIATION = 0.20
     MAX_FAVORABLE_SPREAD = 3.0
     MIN_STRONG_CONFIDENCE = 0.6
+    VALID_TIMEFRAMES = ["1H", "4H", "1D"]
 
     def validate_execution_vs_market(self, execution: Optional[Dict], market_price: Optional[float]) -> ValidationResult:
         if not execution or execution.get("entry") is None:
@@ -89,3 +90,52 @@ class DataValidator:
             return ValidationResult(valid=True, type="LOW_RR", message=f"Low R:R {rr}", severity=ValidationSeverity.WARNING)
         
         return ValidationResult(valid=True, type="execution_levels_ok", message="Levels valid", severity=ValidationSeverity.INFO)
+
+    def validate_timeframe_consistency(self, state: Dict[str, Any]) -> ValidationResult:
+        """
+        Validate that all components use the same timeframe.
+        Critical check for system consistency.
+        """
+        system_tf = state.get("timeframe", "4H")
+        execution = state.get("execution", {})
+        decision = state.get("decision", {})
+        
+        # Check execution timeframe
+        exec_tf = execution.get("timeframe")
+        if exec_tf and exec_tf != system_tf:
+            return ValidationResult(
+                valid=False,
+                type="TIMEFRAME_MISMATCH",
+                message=f"Execution TF ({exec_tf}) != System TF ({system_tf})",
+                severity=ValidationSeverity.CRITICAL,
+                details={"system_tf": system_tf, "execution_tf": exec_tf}
+            )
+        
+        # Check decision timeframe
+        decision_tf = decision.get("timeframe")
+        if decision_tf and decision_tf != system_tf:
+            return ValidationResult(
+                valid=False,
+                type="TIMEFRAME_MISMATCH", 
+                message=f"Decision TF ({decision_tf}) != System TF ({system_tf})",
+                severity=ValidationSeverity.CRITICAL,
+                details={"system_tf": system_tf, "decision_tf": decision_tf}
+            )
+        
+        # Valid timeframe
+        if system_tf not in self.VALID_TIMEFRAMES:
+            return ValidationResult(
+                valid=False,
+                type="INVALID_TIMEFRAME",
+                message=f"Invalid timeframe: {system_tf}",
+                severity=ValidationSeverity.CRITICAL,
+                details={"timeframe": system_tf, "valid": self.VALID_TIMEFRAMES}
+            )
+        
+        return ValidationResult(
+            valid=True,
+            type="timeframe_consistent",
+            message=f"All components using {system_tf}",
+            severity=ValidationSeverity.INFO,
+            details={"timeframe": system_tf}
+        )

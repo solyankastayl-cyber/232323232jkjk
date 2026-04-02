@@ -233,10 +233,10 @@ class TradingTerminalTester:
             self.log_test(f"Micro Live Endpoint ({symbol})", False, f"Error: {str(e)}")
             return False, {}
 
-    def test_terminal_state_endpoint(self, symbol="BTCUSDT"):
+    def test_terminal_state_endpoint(self, symbol="BTCUSDT", timeframe="4H"):
         """Test the main terminal state endpoint with validation layer"""
         try:
-            response = requests.get(f"{self.base_url}/api/terminal/state/{symbol}", timeout=15)
+            response = requests.get(f"{self.base_url}/api/terminal/state/{symbol}?timeframe={timeframe}", timeout=15)
             success = response.status_code == 200
             
             if success:
@@ -254,6 +254,17 @@ class TradingTerminalTester:
                     sections_valid = all(section in state_data for section in required_sections)
                     
                     if sections_valid:
+                        # Check timeframe consistency - CRITICAL for this test
+                        system_timeframe = state_data.get("timeframe")
+                        execution_timeframe = state_data.get("execution", {}).get("timeframe")
+                        decision_timeframe = state_data.get("decision", {}).get("timeframe")
+                        
+                        timeframe_consistent = (
+                            system_timeframe == timeframe and
+                            (execution_timeframe is None or execution_timeframe == timeframe) and
+                            (decision_timeframe is None or decision_timeframe == timeframe)
+                        )
+                        
                         # Check validation section specifically
                         validation = state_data["validation"]
                         validation_valid = all(key in validation for key in ["is_valid", "critical_count", "warning_count", "info_count", "issues"])
@@ -270,7 +281,7 @@ class TradingTerminalTester:
                         micro = state_data["micro"]
                         micro_valid = all(key in micro for key in ["source", "imbalance", "spread", "liquidity", "state", "decision", "reasons"])
                         
-                        success = validation_valid and decision_valid and execution_valid and micro_valid
+                        success = validation_valid and decision_valid and execution_valid and micro_valid and timeframe_consistent
                         
                         # Additional validation checks
                         if success:
@@ -288,9 +299,9 @@ class TradingTerminalTester:
                                     for issue in validation.get("issues", [])
                                 ) or validation.get("is_valid", True)  # Valid if no issues
                             
-                            details = f"Sections: ✓, Validation: ✓, Mock warning: {has_mock_warning}, Entry validation: {has_entry_validation}"
+                            details = f"TF: {system_timeframe}, Consistent: {timeframe_consistent}, Validation: ✓, Mock warning: {has_mock_warning}"
                         else:
-                            details = f"Invalid sections - Validation: {validation_valid}, Decision: {decision_valid}, Execution: {execution_valid}, Micro: {micro_valid}"
+                            details = f"TF inconsistent: sys={system_timeframe}, exec={execution_timeframe}, dec={decision_timeframe} | Validation: {validation_valid}, Decision: {decision_valid}, Execution: {execution_valid}, Micro: {micro_valid}"
                     else:
                         missing_sections = [s for s in required_sections if s not in state_data]
                         details = f"Missing sections: {missing_sections}"
@@ -300,12 +311,97 @@ class TradingTerminalTester:
             else:
                 details = f"Status: {response.status_code}"
                 
-            self.log_test(f"Terminal State Endpoint ({symbol})", success, details)
+            self.log_test(f"Terminal State Endpoint ({symbol} @ {timeframe})", success, details)
             return success, response.json() if success else {}
             
         except Exception as e:
-            self.log_test(f"Terminal State Endpoint ({symbol})", False, f"Error: {str(e)}")
+            self.log_test(f"Terminal State Endpoint ({symbol} @ {timeframe})", False, f"Error: {str(e)}")
             return False, {}
+
+    def test_timeframe_consistency_validation(self, symbol="BTCUSDT"):
+        """Test timeframe consistency validation across all timeframes"""
+        timeframes = ["1H", "4H", "1D"]
+        all_passed = True
+        
+        for tf in timeframes:
+            try:
+                response = requests.get(f"{self.base_url}/api/terminal/state/{symbol}?timeframe={tf}", timeout=15)
+                success = response.status_code == 200
+                
+                if success:
+                    data = response.json()
+                    if data.get("ok") and "data" in data:
+                        state_data = data["data"]
+                        validation = state_data.get("validation", {})
+                        
+                        # Check for timeframe consistency issues
+                        timeframe_issues = [
+                            issue for issue in validation.get("issues", [])
+                            if issue.get("type") == "TIMEFRAME_MISMATCH"
+                        ]
+                        
+                        # Should have no timeframe mismatch issues
+                        tf_consistent = len(timeframe_issues) == 0
+                        system_tf = state_data.get("timeframe")
+                        
+                        if tf_consistent and system_tf == tf:
+                            self.log_test(f"Timeframe Consistency ({tf})", True, f"System TF: {system_tf}")
+                        else:
+                            self.log_test(f"Timeframe Consistency ({tf})", False, f"System TF: {system_tf}, Issues: {timeframe_issues}")
+                            all_passed = False
+                    else:
+                        self.log_test(f"Timeframe Consistency ({tf})", False, "Invalid response structure")
+                        all_passed = False
+                else:
+                    self.log_test(f"Timeframe Consistency ({tf})", False, f"Status: {response.status_code}")
+                    all_passed = False
+                    
+            except Exception as e:
+                self.log_test(f"Timeframe Consistency ({tf})", False, f"Error: {str(e)}")
+                all_passed = False
+        
+        return all_passed
+
+    def test_coinbase_chart_data(self, symbol="BTCUSDT"):
+        """Test that chart loads real Coinbase data for all timeframes"""
+        timeframes = ["1H", "4H", "1D"]
+        tf_mapping = {"1H": "1h", "4H": "6h", "1D": "1d"}
+        all_passed = True
+        
+        asset = symbol.replace("USDT", "").replace("USD", "")
+        
+        for tf in timeframes:
+            try:
+                coinbase_tf = tf_mapping[tf]
+                response = requests.get(f"{self.base_url}/api/provider/coinbase/candles/{asset}?timeframe={coinbase_tf}&limit=50", timeout=15)
+                success = response.status_code == 200
+                
+                if success:
+                    data = response.json()
+                    if data.get("ok") and data.get("candles") and len(data["candles"]) > 0:
+                        candles = data["candles"]
+                        # Validate candle structure
+                        first_candle = candles[0]
+                        required_fields = ["timestamp", "open", "high", "low", "close", "volume"]
+                        candle_valid = all(field in first_candle for field in required_fields)
+                        
+                        if candle_valid:
+                            self.log_test(f"Coinbase Chart Data ({tf})", True, f"Got {len(candles)} candles")
+                        else:
+                            self.log_test(f"Coinbase Chart Data ({tf})", False, f"Invalid candle structure: {first_candle}")
+                            all_passed = False
+                    else:
+                        self.log_test(f"Coinbase Chart Data ({tf})", False, f"No candles data: {data}")
+                        all_passed = False
+                else:
+                    self.log_test(f"Coinbase Chart Data ({tf})", False, f"Status: {response.status_code}")
+                    all_passed = False
+                    
+            except Exception as e:
+                self.log_test(f"Coinbase Chart Data ({tf})", False, f"Error: {str(e)}")
+                all_passed = False
+        
+        return all_passed
 
     def run_all_tests(self):
         """Run all trading terminal tests"""
@@ -319,10 +415,26 @@ class TradingTerminalTester:
         # Test authentication
         self.test_terminal_auth()
         
-        # Test the main terminal state endpoint (most important)
-        symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        # Test timeframe functionality - MAIN FOCUS
+        print("\n🎯 TIMEFRAME FUNCTIONALITY TESTS")
+        print("-" * 40)
+        
+        # Test timeframe consistency validation
+        self.test_timeframe_consistency_validation()
+        
+        # Test Coinbase chart data for all timeframes
+        self.test_coinbase_chart_data()
+        
+        # Test the main terminal state endpoint with all timeframes
+        symbols = ["BTCUSDT", "ETHUSDT"]
+        timeframes = ["1H", "4H", "1D"]
+        
         for symbol in symbols:
-            self.test_terminal_state_endpoint(symbol)
+            for tf in timeframes:
+                self.test_terminal_state_endpoint(symbol, tf)
+        
+        print("\n📊 OTHER ENDPOINT TESTS")
+        print("-" * 40)
         
         # Test individual endpoints
         for symbol in symbols:

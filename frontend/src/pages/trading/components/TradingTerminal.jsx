@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Activity, TrendingUp, Target, Layers, BarChart2, 
-  RefreshCw, Wifi, WifiOff, ChevronRight
+  RefreshCw, Wifi, WifiOff, ChevronRight, Clock
 } from 'lucide-react';
 import TradingChart from '../../../components/charts/TradingChart';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
-// Unified API fetch
-const fetchTerminalState = async (symbol) => {
-  const res = await fetch(`${API_URL}/api/terminal/state/${symbol}`);
+// Valid timeframes
+const TIMEFRAMES = ['1H', '4H', '1D'];
+
+// Unified API fetch with timeframe
+const fetchTerminalState = async (symbol, timeframe) => {
+  const res = await fetch(`${API_URL}/api/terminal/state/${symbol}?timeframe=${timeframe}`);
   if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
   return res.json();
 };
@@ -32,15 +35,18 @@ const STRENGTH_COLORS = {
 
 const TradingTerminal = () => {
   const [symbol, setSymbol] = useState('BTCUSDT');
+  const [timeframe, setTimeframe] = useState('4H');
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tfLoading, setTfLoading] = useState(false);  // Loading on TF change
   const [connected, setConnected] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
   // Single unified fetch
-  const loadState = useCallback(async () => {
+  const loadState = useCallback(async (showTfLoading = false) => {
     try {
-      const response = await fetchTerminalState(symbol);
+      if (showTfLoading) setTfLoading(true);
+      const response = await fetchTerminalState(symbol, timeframe);
       if (response.ok && response.data) {
         setState(response.data);
         setLastUpdate(new Date());
@@ -51,16 +57,24 @@ const TradingTerminal = () => {
       setConnected(false);
     } finally {
       setLoading(false);
+      setTfLoading(false);
     }
-  }, [symbol]);
+  }, [symbol, timeframe]);
+
+  // Handle timeframe change
+  const handleTimeframeChange = (newTf) => {
+    if (newTf !== timeframe) {
+      setTimeframe(newTf);
+    }
+  };
 
   useEffect(() => {
-    loadState();
-    const interval = setInterval(loadState, 3000);
+    loadState(true);  // Show loading on initial/TF change
+    const interval = setInterval(() => loadState(false), 3000);
     return () => clearInterval(interval);
   }, [loadState]);
 
-  const handleRefresh = () => loadState();
+  const handleRefresh = () => loadState(true);
 
   if (loading && !state) {
     return (
@@ -80,6 +94,7 @@ const TradingTerminal = () => {
   const portfolio = state?.portfolio || {};
   const risk = state?.risk || {};
   const validation = state?.validation || {};
+  const systemTimeframe = state?.timeframe || timeframe;
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden font-sans" data-testid="trading-terminal">
@@ -103,6 +118,31 @@ const TradingTerminal = () => {
             <option value="ETHUSDT">ETH/USDT</option>
             <option value="SOLUSDT">SOL/USDT</option>
           </select>
+        </div>
+
+        {/* Timeframe Selector */}
+        <div className="p-2 lg:p-4 border-b border-gray-800">
+          <div className="hidden lg:flex items-center gap-1 mb-2">
+            <Clock className="w-3 h-3 text-gray-500" />
+            <span className="text-xs text-gray-500 uppercase tracking-wider">Timeframe</span>
+          </div>
+          <div className="flex gap-1" data-testid="timeframe-selector">
+            {TIMEFRAMES.map(tf => (
+              <button
+                key={tf}
+                onClick={() => handleTimeframeChange(tf)}
+                disabled={tfLoading}
+                className={`flex-1 px-2 py-1.5 text-xs font-bold rounded transition-all ${
+                  timeframe === tf
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                } ${tfLoading ? 'opacity-50 cursor-wait' : ''}`}
+                data-testid={`tf-${tf}`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Nav Items */}
@@ -135,6 +175,10 @@ const TradingTerminal = () => {
             <h1 className="text-sm font-bold uppercase tracking-widest text-gray-900">
               {symbol}
             </h1>
+            {/* Timeframe Badge */}
+            <span className="text-xs px-2 py-0.5 rounded bg-gray-900 text-white font-bold" data-testid="active-timeframe">
+              {systemTimeframe}
+            </span>
             {lastUpdate && (
               <span className="text-xs text-gray-500">
                 Last: {lastUpdate.toLocaleTimeString()}
@@ -148,6 +192,10 @@ const TradingTerminal = () => {
             }`}>
               {state?.system?.mode === 'LIVE' ? 'LIVE' : 'SIMULATION'}
             </span>
+            {/* TF Loading indicator */}
+            {tfLoading && (
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button 
@@ -175,6 +223,7 @@ const TradingTerminal = () => {
             <div className="lg:col-span-12 bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
               <TradingChart
                 symbol={symbol}
+                timeframe={systemTimeframe}
                 execution={execution}
                 decision={decision}
                 height={450}

@@ -75,22 +75,30 @@ class TerminalStateEngine:
         if system_service:
             self._system_service = system_service
     
-    async def get_terminal_state(self, symbol: str) -> Dict[str, Any]:
+    # Timeframe configuration
+    VALID_TIMEFRAMES = ["1H", "4H", "1D"]
+    TIMEFRAME_MINUTES = {"1H": 60, "4H": 240, "1D": 1440}
+    
+    async def get_terminal_state(self, symbol: str, timeframe: str = "4H") -> Dict[str, Any]:
         """
-        Get unified terminal state for symbol.
+        Get unified terminal state for symbol and timeframe.
         This is THE endpoint for /trading UI.
+        
+        Timeframe is a SYSTEM parameter, not just UI preference.
+        All components must use the same timeframe.
         """
         symbol = symbol.upper()
+        timeframe = timeframe.upper() if timeframe in self.VALID_TIMEFRAMES else "4H"
         
-        # Check cache
-        cache_key = f"state_{symbol}"
+        # Check cache (include timeframe in key)
+        cache_key = f"state_{symbol}_{timeframe}"
         if self._is_cache_valid(cache_key):
             return self._cache[cache_key]
         
-        # Gather all data concurrently
+        # Gather all data concurrently - pass timeframe to all
         results = await asyncio.gather(
-            self._safe_get(self._get_decision, symbol),
-            self._safe_get(self._get_execution, symbol),
+            self._safe_get(self._get_decision, symbol, timeframe),
+            self._safe_get(self._get_execution, symbol, timeframe),
             self._safe_get(self._get_micro, symbol),
             self._safe_get(self._get_position, symbol),
             self._safe_get(self._get_portfolio, symbol),
@@ -102,7 +110,7 @@ class TerminalStateEngine:
         
         # Unpack results with defaults
         decision = results[0] if isinstance(results[0], dict) else self._default_decision(symbol)
-        execution = results[1] if isinstance(results[1], dict) else self._default_execution()
+        execution = results[1] if isinstance(results[1], dict) else self._default_execution(timeframe)
         micro = results[2] if isinstance(results[2], dict) else self._default_micro()
         position = results[3] if isinstance(results[3], dict) else self._default_position(symbol)
         portfolio = results[4] if isinstance(results[4], dict) else self._default_portfolio()
@@ -110,8 +118,12 @@ class TerminalStateEngine:
         strategy = results[6] if isinstance(results[6], dict) else self._default_strategy()
         system = results[7] if isinstance(results[7], dict) else self._default_system()
         
+        # Add timeframe to execution for consistency
+        execution["timeframe"] = timeframe
+        
         state = {
             "symbol": symbol,
+            "timeframe": timeframe,  # System-level timeframe
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "decision": decision,
             "execution": execution,
@@ -153,10 +165,21 @@ class TerminalStateEngine:
         age = (datetime.now(timezone.utc) - self._cache_timestamps[key]).total_seconds()
         return age < self._cache_ttl_seconds
     
-    async def _safe_get(self, fn, symbol: str) -> Dict[str, Any]:
+    async def _safe_get(self, fn, symbol: str, timeframe: str = None) -> Dict[str, Any]:
         """Safely call a getter function with error handling"""
         try:
-            result = await fn(symbol) if asyncio.iscoroutinefunction(fn) else fn(symbol)
+            if timeframe and asyncio.iscoroutinefunction(fn):
+                # Try calling with timeframe first
+                import inspect
+                sig = inspect.signature(fn)
+                if 'timeframe' in sig.parameters:
+                    result = await fn(symbol, timeframe)
+                else:
+                    result = await fn(symbol)
+            elif asyncio.iscoroutinefunction(fn):
+                result = await fn(symbol)
+            else:
+                result = fn(symbol)
             return result if isinstance(result, dict) else {}
         except Exception as e:
             logger.warning(f"[TerminalState] Error in {fn.__name__}: {e}")
@@ -166,7 +189,7 @@ class TerminalStateEngine:
     # DATA GETTERS - Each integrates with a service
     # =========================================
     
-    async def _get_decision(self, symbol: str) -> Dict[str, Any]:
+    async def _get_decision(self, symbol: str, timeframe: str = "4H") -> Dict[str, Any]:
         """Get decision from Entry Timing Integration"""
         # Try to import and use entry timing integration
         try:
@@ -182,14 +205,15 @@ class TerminalStateEngine:
                     "confidence": decision_data.get("confidence", 0.5),
                     "direction": "LONG" if decision_data.get("action", "").startswith("GO") else "NEUTRAL",
                     "mode": data.get("execution", {}).get("mode", "PASSIVE_LIMIT"),
-                    "reasons": [r.get("text", "") for r in why_data] if why_data else []
+                    "reasons": [r.get("text", "") for r in why_data] if why_data else [],
+                    "timeframe": timeframe
                 }
         except Exception as e:
             logger.warning(f"[Decision] Error: {e}")
         
         return self._default_decision(symbol)
     
-    async def _get_execution(self, symbol: str) -> Dict[str, Any]:
+    async def _get_execution(self, symbol: str, timeframe: str = "4H") -> Dict[str, Any]:
         """Get execution parameters"""
         try:
             from ..live.terminal_routes import get_terminal_decision
@@ -205,7 +229,8 @@ class TerminalStateEngine:
                     "stop": exec_data.get("stop_loss"),
                     "target": exec_data.get("take_profit"),
                     "rr": exec_data.get("risk_reward"),
-                    "execution_confidence": decision.get("confidence", 0.5)
+                    "execution_confidence": decision.get("confidence", 0.5),
+                    "timeframe": timeframe
                 }
         except Exception as e:
             logger.warning(f"[Execution] Error: {e}")
@@ -359,7 +384,7 @@ class TerminalStateEngine:
             "reasons": ["waiting_for_data"]
         }
     
-    def _default_execution(self) -> Dict[str, Any]:
+    def _default_execution(self, timeframe: str = "4H") -> Dict[str, Any]:
         return {
             "mode": "PASSIVE_LIMIT",
             "size": 0.0,
@@ -367,7 +392,8 @@ class TerminalStateEngine:
             "stop": None,
             "target": None,
             "rr": None,
-            "execution_confidence": 0.0
+            "execution_confidence": 0.0,
+            "timeframe": timeframe
         }
     
     def _default_micro(self) -> Dict[str, Any]:
