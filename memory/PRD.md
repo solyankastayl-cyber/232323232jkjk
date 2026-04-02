@@ -1,9 +1,18 @@
 # TA Engine — Full System PRD
 
 ## Project Overview
-TA Engine - fund-grade decision-driven trading system with prediction engine, execution simulation, portfolio backtesting, risk management, multi-asset scaling, self-calibrating layer, controlled adaptive execution, policy guards, audit/rollback, Entry Timing Stack including Microstructure validation, Trading Terminal with Unified State Orchestrator, DATA VALIDATION LAYER, and **TIMEFRAME SELECTOR**.
+TA Engine - fund-grade decision-driven trading system with full operational terminal including:
+- Prediction Engine
+- Execution Simulation
+- Portfolio Backtesting  
+- Risk Management
+- Entry Timing Stack with Microstructure
+- Trading Terminal with Unified State Orchestrator
+- DATA VALIDATION LAYER
+- TIMEFRAME SELECTOR
+- **EXECUTION STATE & ORDERS (NEW - Phase TT1)**
 
-## Current Version: Phase T4 - Timeframe Selector Complete
+## Current Version: Phase TT1 - Execution State & Orders Complete
 
 ## System Architecture
 
@@ -12,96 +21,106 @@ TA Engine - fund-grade decision-driven trading system with prediction engine, ex
 │                    TRADING TERMINAL UI                       │
 │    ┌────────────────────────────────────────────────────┐   │
 │    │     TIMEFRAME: [ 1H ] [ 4H ] [ 1D ]                │   │
+│    │     EXECUTION STATUS: [IDLE] -> [WAITING] -> ...   │   │
+│    │     ORDERS TAB: order list                         │   │
 │    └────────────────────────────────────────────────────┘   │
-│    ┌────────────────────────────────────────────────────┐   │
-│    │   GET /api/terminal/state/{symbol}?timeframe=4H    │   │
-│    │                SINGLE SOURCE OF TRUTH              │   │
-│    │        + VALIDATION + TIMEFRAME AWARENESS          │   │
-│    └────────────────────────────────────────────────────┘   │
+│    GET /api/terminal/state/{symbol}?timeframe=4H            │
+│         + execution_status + orders_preview                 │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│              TERMINAL STATE ORCHESTRATOR                     │
-│              (all components get timeframe)                  │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
-│  │Decision │ │ Candles │ │Execution│ │Validation│           │
-│  │   TF    │ │   TF    │ │   TF    │ │   TF    │           │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
+│              EXECUTION STATE ENGINE (NEW)                    │
+│                                                              │
+│   Decision → ExecutionIntent → OrderState → Position        │
+│                                                              │
+│   States: IDLE → WAITING_ENTRY → READY_TO_PLACE →           │
+│           ORDER_PLANNED → ORDER_PLACED → PARTIAL_FILL →     │
+│           FILLED → CLOSED                                    │
+│                                                              │
+│   State Machine prevents illegal transitions!                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## What's Been Implemented
 
-### 2026-04-02: Phase T4 — Timeframe Selector (COMPLETE)
+### 2026-04-02: Phase TT1 — Execution State & Orders (COMPLETE)
 
-**Backend Changes:**
-- `terminal_state_engine.py`: Added timeframe as system parameter
-- `terminal_state_routes.py`: Added `?timeframe=` query param
-- `data_validator.py`: Added `validate_timeframe_consistency()`
-- `reconciliation_engine.py`: Timeframe in validation response
-
-**Frontend Changes:**
-- `TradingTerminal.jsx`: Timeframe state, selector UI, badge in header
-- `TradingChart.jsx`: Timeframe-aware candle fetching
-
-**Timeframe Mapping (Coinbase):**
-- 1H → 1h (168 candles = 7 days)
-- 4H → 6h (120 candles = 30 days) *closest available*
-- 1D → 1d (90 candles = 90 days)
-
-**API:**
+**New Backend Module:**
 ```
-GET /api/terminal/state/BTCUSDT?timeframe=1H
-GET /api/terminal/state/BTCUSDT?timeframe=4H (default)
-GET /api/terminal/state/BTCUSDT?timeframe=1D
+/app/backend/modules/trading_terminal/execution/
+├── __init__.py
+├── execution_models.py        # ExecutionIntent, OrderState, ExecutionStatusSummary
+├── order_state_machine.py     # State transitions validation
+├── execution_repository.py    # In-memory storage
+├── execution_state_engine.py  # Main orchestrator
+└── execution_routes.py        # API endpoints
 ```
 
-**Response includes:**
+**Order Lifecycle States:**
+- IDLE → WAITING_ENTRY → READY_TO_PLACE
+- ORDER_PLANNED → ORDER_PLACED → PARTIAL_FILL → FILLED → CLOSED
+- Also: CANCELLED, REJECTED, EXPIRED
+
+**New API Endpoints:**
+- `GET /api/terminal/execution/{symbol}` - Execution status
+- `GET /api/terminal/orders` - List all orders
+- `GET /api/terminal/orders/open` - Open orders only
+- `GET /api/terminal/intents` - List intents
+- `POST /api/terminal/intents/simulate-upsert` - Create intent
+- `POST /api/terminal/orders/simulate-place` - Place order
+- `POST /api/terminal/orders/{id}/simulate-fill` - Fill order
+- `POST /api/terminal/orders/{id}/simulate-cancel` - Cancel order
+
+**Frontend Components:**
+- `ExecutionStatusBlock` - Shows execution state, fill progress, intent state
+- `OrdersTab` - Shows orders with status, price, size, filled %
+
+**Terminal State Integration:**
 ```json
 {
-  "timeframe": "4H",
-  "execution": { "timeframe": "4H", ... },
-  "validation": { "timeframe": "4H", ... }
+  "execution_status": {
+    "execution_state": "ORDER_PLACED",
+    "intent_state": "READY_TO_PLACE",
+    "order_present": true,
+    "filled_pct": 0.375,
+    "status_label": "Order placed"
+  },
+  "orders_preview": [...]
 }
 ```
 
-### 2026-04-02: Phase T3 — Data Validation Layer (COMPLETE)
-- Entry vs Market price check (20% threshold)
-- Position vs Symbol check
-- Mock data warnings
-- Timeframe consistency validation
-
 ### Previous Phases (Completed)
+- Phase T4: Timeframe Selector (1H/4H/1D)
+- Phase T3: Data Validation Layer
 - Phase T2: Terminal State Orchestrator
 - Phase 5.1: Live Microstructure
 - Phase 4.1-4.8.4: Entry Timing Stack
-- Phase 3.1-3.4: Action Engine, Policy Guard, Audit/Rollback
-- Phase 2.1-2.9: Prediction V2, Execution, Portfolio, Risk
 
 ## Test Results
-- Phase T4: Backend 100%, Frontend 95%
+- Phase TT1: Backend 95%, Frontend 85%
 
 ## Prioritized Backlog
 
 ### P0 (Next Immediate)
-1. **WebSocket Real-time** - Replace 3s polling with push
-2. **Alert System** - Price near entry, validation errors, decision changes
+1. **TT2 - Position Manager** - Detailed position lifecycle
+2. **TT3 - Portfolio & Risk Console** - Deep risk visibility
 
 ### P1 Priority
-1. MTF (Multi-Timeframe) analysis layer
-2. Order lifecycle states
-3. Real execution integration
+1. WebSocket real-time updates
+2. Alert System (price, validation, decision changes)
+3. MTF (Multi-Timeframe) analysis
 
 ### P2 Priority
-1. Trading history view
-2. Export/share functionality
+1. Trade History / Forensics
+2. System Console
+3. Real exchange execution
 
 ## Tech Stack
 - Backend: FastAPI + Python + aiohttp
-- Database: MongoDB
+- Database: MongoDB (+ in-memory for execution)
 - Frontend: React + Tailwind CSS + lightweight-charts
 - Data: Coinbase API (live)
 
 ---
 *Last Updated: 2026-04-02*
-*Phase T4 Timeframe Selector COMPLETE*
+*Phase TT1 Execution State & Orders COMPLETE*

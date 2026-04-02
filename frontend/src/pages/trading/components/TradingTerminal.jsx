@@ -437,7 +437,7 @@ const TradingTerminal = () => {
                   <h2 className="text-xs font-semibold tracking-widest text-gray-500 uppercase">Orders</h2>
                 </div>
                 <div className="p-0">
-                  <OrdersTab orders={ordersPreview} />
+                  <OrdersTab orders={ordersPreview} symbol={symbol} />
                 </div>
               </div>
             </div>
@@ -601,11 +601,39 @@ const ExecutionStatusBlock = ({ executionStatus, onPlaceOrder }) => {
 };
 
 // Orders Tab Component
-const OrdersTab = ({ orders }) => {
-  if (!orders || orders.length === 0) {
+const OrdersTab = ({ orders, symbol }) => {
+  const [allOrders, setAllOrders] = React.useState([]);
+  const [showAll, setShowAll] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+
+  const loadAllOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/terminal/orders?limit=20`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllOrders(data.orders || []);
+        setShowAll(true);
+      }
+    } catch (e) {
+      console.error('Failed to load orders:', e);
+    }
+    setLoading(false);
+  };
+
+  const displayOrders = showAll ? allOrders : orders;
+  
+  if (!displayOrders || displayOrders.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-sm p-6 text-center text-gray-500">
-        <div className="text-sm">No orders yet</div>
+      <div className="bg-white border border-gray-200 rounded-sm p-6 text-center">
+        <div className="text-sm text-gray-500 mb-3">No orders for {symbol}</div>
+        <button
+          onClick={loadAllOrders}
+          disabled={loading}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          {loading ? 'Loading...' : 'Show all orders'}
+        </button>
       </div>
     );
   }
@@ -633,7 +661,7 @@ const OrdersTab = ({ orders }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {orders.map((order, idx) => (
+          {displayOrders.map((order, idx) => (
             <tr key={order.order_id || idx} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-mono text-xs text-gray-600">
                 {order.order_id?.slice(0, 8)}...
@@ -656,6 +684,17 @@ const OrdersTab = ({ orders }) => {
           ))}
         </tbody>
       </table>
+      {!showAll && (
+        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
+          <button
+            onClick={loadAllOrders}
+            disabled={loading}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {loading ? 'Loading...' : 'Load all orders'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
