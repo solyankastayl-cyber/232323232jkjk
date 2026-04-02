@@ -11,12 +11,70 @@ import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lig
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
-// Fetch candles
+// Fetch candles - try Coinbase live first, fallback to mock
 async function fetchCandles(asset, days = 7) {
+  // Try Coinbase live candles first
+  try {
+    const coinbaseUrl = `${API_URL}/api/provider/coinbase/candles/${asset}?timeframe=1h&limit=168`;
+    const coinbaseRes = await fetch(coinbaseUrl);
+    if (coinbaseRes.ok) {
+      const data = await coinbaseRes.json();
+      if (data.ok && data.candles && data.candles.length > 0) {
+        // Convert Coinbase format to chart format
+        // Sort by timestamp ascending and deduplicate
+        const seen = new Set();
+        const candles = data.candles
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+          .filter(c => {
+            const ts = c.timestamp;
+            if (seen.has(ts)) return false;
+            seen.add(ts);
+            return true;
+          })
+          .map(c => {
+            // Convert ms timestamp to date string YYYY-MM-DD
+            const date = new Date(c.timestamp);
+            const time = date.toISOString().split('T')[0];
+            return {
+              t: time,
+              o: c.open || c.o,
+              h: c.high || c.h,
+              l: c.low || c.l,
+              c: c.close || c.c,
+              v: c.volume || c.v || 0
+            };
+          });
+        
+        // Aggregate hourly to daily candles
+        const dailyMap = {};
+        candles.forEach(c => {
+          if (!dailyMap[c.t]) {
+            dailyMap[c.t] = { t: c.t, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v };
+          } else {
+            dailyMap[c.t].h = Math.max(dailyMap[c.t].h, c.h);
+            dailyMap[c.t].l = Math.min(dailyMap[c.t].l, c.l);
+            dailyMap[c.t].c = c.c; // Latest close
+            dailyMap[c.t].v += c.v;
+          }
+        });
+        
+        const dailyCandles = Object.values(dailyMap).sort((a, b) => a.t.localeCompare(b.t));
+        
+        if (dailyCandles.length > 0) {
+          return { ok: true, candles: dailyCandles, source: 'coinbase' };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Coinbase candles failed, using mock:', e);
+  }
+  
+  // Fallback to mock data
   const url = `${API_URL}/api/ui/candles?asset=${asset}&days=${days}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return { ...data, source: 'mock' };
 }
 
 export default function TradingChart({

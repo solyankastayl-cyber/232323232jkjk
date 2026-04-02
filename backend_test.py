@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 
 class TradingTerminalTester:
-    def __init__(self, base_url="https://arch-study-5.preview.emergentagent.com"):
+    def __init__(self, base_url="https://repo-study-4.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
@@ -233,6 +233,80 @@ class TradingTerminalTester:
             self.log_test(f"Micro Live Endpoint ({symbol})", False, f"Error: {str(e)}")
             return False, {}
 
+    def test_terminal_state_endpoint(self, symbol="BTCUSDT"):
+        """Test the main terminal state endpoint with validation layer"""
+        try:
+            response = requests.get(f"{self.base_url}/api/terminal/state/{symbol}", timeout=15)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                success = (
+                    data.get("ok") == True and
+                    "data" in data
+                )
+                
+                if success:
+                    state_data = data["data"]
+                    
+                    # Check main sections exist
+                    required_sections = ["symbol", "timestamp", "decision", "execution", "micro", "position", "portfolio", "risk", "strategy", "system", "validation"]
+                    sections_valid = all(section in state_data for section in required_sections)
+                    
+                    if sections_valid:
+                        # Check validation section specifically
+                        validation = state_data["validation"]
+                        validation_valid = all(key in validation for key in ["is_valid", "critical_count", "warning_count", "info_count", "issues"])
+                        
+                        # Check decision section
+                        decision = state_data["decision"]
+                        decision_valid = all(key in decision for key in ["action", "confidence", "direction", "mode", "reasons"])
+                        
+                        # Check execution section
+                        execution = state_data["execution"]
+                        execution_valid = all(key in execution for key in ["mode", "size", "entry", "stop", "target", "rr"])
+                        
+                        # Check micro section
+                        micro = state_data["micro"]
+                        micro_valid = all(key in micro for key in ["source", "imbalance", "spread", "liquidity", "state", "decision", "reasons"])
+                        
+                        success = validation_valid and decision_valid and execution_valid and micro_valid
+                        
+                        # Additional validation checks
+                        if success:
+                            # Check if validation shows warnings for mock data
+                            has_mock_warning = any(
+                                issue.get("type") == "SIMULATION_MODE" or "mock" in issue.get("message", "").lower()
+                                for issue in validation.get("issues", [])
+                            )
+                            
+                            # Check if entry price validation exists when execution has entry
+                            has_entry_validation = True
+                            if execution.get("entry"):
+                                has_entry_validation = any(
+                                    "entry" in issue.get("message", "").lower() or issue.get("type") == "ENTRY_PRICE_MISMATCH"
+                                    for issue in validation.get("issues", [])
+                                ) or validation.get("is_valid", True)  # Valid if no issues
+                            
+                            details = f"Sections: ✓, Validation: ✓, Mock warning: {has_mock_warning}, Entry validation: {has_entry_validation}"
+                        else:
+                            details = f"Invalid sections - Validation: {validation_valid}, Decision: {decision_valid}, Execution: {execution_valid}, Micro: {micro_valid}"
+                    else:
+                        missing_sections = [s for s in required_sections if s not in state_data]
+                        details = f"Missing sections: {missing_sections}"
+                        success = False
+                else:
+                    details = f"Missing data field in response: {data}"
+            else:
+                details = f"Status: {response.status_code}"
+                
+            self.log_test(f"Terminal State Endpoint ({symbol})", success, details)
+            return success, response.json() if success else {}
+            
+        except Exception as e:
+            self.log_test(f"Terminal State Endpoint ({symbol})", False, f"Error: {str(e)}")
+            return False, {}
+
     def run_all_tests(self):
         """Run all trading terminal tests"""
         print("🚀 Starting Trading Terminal Backend Tests")
@@ -245,8 +319,12 @@ class TradingTerminalTester:
         # Test authentication
         self.test_terminal_auth()
         
-        # Test decision endpoints for all symbols
+        # Test the main terminal state endpoint (most important)
         symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        for symbol in symbols:
+            self.test_terminal_state_endpoint(symbol)
+        
+        # Test individual endpoints
         for symbol in symbols:
             self.test_decision_endpoint(symbol)
             self.test_micro_live_endpoint(symbol)

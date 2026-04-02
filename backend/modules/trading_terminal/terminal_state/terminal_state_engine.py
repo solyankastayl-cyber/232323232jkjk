@@ -21,6 +21,8 @@ from typing import Any, Dict, Optional, List
 import logging
 import asyncio
 
+from ..validation.reconciliation_engine import get_reconciliation_engine
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,6 +122,22 @@ class TerminalStateEngine:
             "strategy": strategy,
             "system": system
         }
+        
+        # Run validation layer with live price
+        try:
+            reconciliation = get_reconciliation_engine()
+            validation = await reconciliation.validate_terminal_state_async(state)
+            state["validation"] = validation
+        except Exception as e:
+            logger.warning(f"[Validation] Error: {e}")
+            state["validation"] = {
+                "is_valid": True,
+                "critical_count": 0,
+                "warning_count": 0,
+                "info_count": 0,
+                "issues": [],
+                "error": str(e)
+            }
         
         # Cache result
         self._cache[cache_key] = state

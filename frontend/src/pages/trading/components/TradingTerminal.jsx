@@ -79,6 +79,7 @@ const TradingTerminal = () => {
   const position = state?.position || {};
   const portfolio = state?.portfolio || {};
   const risk = state?.risk || {};
+  const validation = state?.validation || {};
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden font-sans" data-testid="trading-terminal">
@@ -162,6 +163,13 @@ const TradingTerminal = () => {
         {/* Grid Content */}
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+            
+            {/* Validation Block - Shows only when there are issues */}
+            {(validation.critical_count > 0 || validation.warning_count > 0) && (
+              <div className="lg:col-span-12">
+                <ValidationBlock validation={validation} />
+              </div>
+            )}
             
             {/* Chart Block - FULL WIDTH */}
             <div className="lg:col-span-12 bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
@@ -394,6 +402,55 @@ const MicroStat = ({ label, value, color = 'gray' }) => {
     <div className="flex flex-col">
       <span className="text-xs text-gray-500 uppercase tracking-wider">{label}</span>
       <span className={`text-lg font-bold tabular-nums mt-1 ${colorMap[color]}`}>{value}</span>
+    </div>
+  );
+};
+
+// Validation Block Component
+const ValidationBlock = ({ validation }) => {
+  if (!validation || !validation.issues?.length) return null;
+  
+  const hasCritical = validation.critical_count > 0;
+  const hasWarning = validation.warning_count > 0;
+  
+  // Only show if there are actual issues worth displaying
+  const relevantIssues = validation.issues?.filter(
+    i => i.severity === 'critical' || i.severity === 'warning'
+  ) || [];
+  
+  if (relevantIssues.length === 0) return null;
+  
+  return (
+    <div 
+      className={`rounded-sm border p-4 ${
+        hasCritical 
+          ? 'border-red-300 bg-red-50' 
+          : hasWarning 
+            ? 'border-amber-300 bg-amber-50'
+            : 'border-gray-200 bg-gray-50'
+      }`}
+      data-testid="validation-block"
+    >
+      <div className={`text-xs font-bold uppercase tracking-widest mb-3 ${
+        hasCritical ? 'text-red-700' : hasWarning ? 'text-amber-700' : 'text-gray-500'
+      }`}>
+        {hasCritical ? 'DATA ERROR' : 'Data Warning'}
+      </div>
+      <div className="space-y-2">
+        {relevantIssues.map((issue, idx) => (
+          <div 
+            key={idx} 
+            className={`flex items-start gap-2 text-sm ${
+              issue.severity === 'critical' ? 'text-red-700' : 'text-amber-700'
+            }`}
+          >
+            <span className="font-bold flex-shrink-0">
+              {issue.valid ? '✓' : '✗'}
+            </span>
+            <span>{issue.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
