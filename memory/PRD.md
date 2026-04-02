@@ -1,117 +1,107 @@
 # TA Engine — Full System PRD
 
 ## Project Overview
-TA Engine - fund-grade decision-driven trading system with prediction engine, execution simulation, portfolio backtesting, risk management, multi-asset scaling, self-calibrating layer, controlled adaptive execution, policy guards, audit/rollback, Entry Timing Stack including Microstructure validation, Trading Terminal with Unified State Orchestrator, and **DATA VALIDATION LAYER**.
+TA Engine - fund-grade decision-driven trading system with prediction engine, execution simulation, portfolio backtesting, risk management, multi-asset scaling, self-calibrating layer, controlled adaptive execution, policy guards, audit/rollback, Entry Timing Stack including Microstructure validation, Trading Terminal with Unified State Orchestrator, DATA VALIDATION LAYER, and **TIMEFRAME SELECTOR**.
 
-## Current Version: Phase T3 - Data Validation Layer Complete
+## Current Version: Phase T4 - Timeframe Selector Complete
 
 ## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    TRADING TERMINAL UI                       │
-│                      /trading page                           │
-│    ┌──────────────────────────────────────────────────┐     │
-│    │        GET /api/terminal/state/{symbol}          │     │
-│    │            SINGLE SOURCE OF TRUTH                │     │
-│    │         + VALIDATION LAYER (NEW)                 │     │
-│    └──────────────────────────────────────────────────┘     │
+│    ┌────────────────────────────────────────────────────┐   │
+│    │     TIMEFRAME: [ 1H ] [ 4H ] [ 1D ]                │   │
+│    └────────────────────────────────────────────────────┘   │
+│    ┌────────────────────────────────────────────────────┐   │
+│    │   GET /api/terminal/state/{symbol}?timeframe=4H    │   │
+│    │                SINGLE SOURCE OF TRUTH              │   │
+│    │        + VALIDATION + TIMEFRAME AWARENESS          │   │
+│    └────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │              TERMINAL STATE ORCHESTRATOR                     │
-│                  (terminal_state_engine.py)                  │
+│              (all components get timeframe)                  │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
-│  │Decision │ │ Micro   │ │Position │ │Portfolio│           │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘           │
-│       │           │           │           │                  │
-│  ┌────┴────┐ ┌────┴────┐ ┌────┴────┐ ┌────┴────┐           │
-│  │  Risk   │ │Strategy │ │ System  │ │Execution│           │
+│  │Decision │ │ Candles │ │Execution│ │Validation│           │
+│  │   TF    │ │   TF    │ │   TF    │ │   TF    │           │
 │  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
-│                     ↓                                        │
-│  ┌──────────────────────────────────────────────────┐       │
-│  │           DATA VALIDATION LAYER (NEW)            │       │
-│  │   - Entry vs Market Price Check                  │       │
-│  │   - Position vs Symbol Check                     │       │
-│  │   - Mock vs Live Source Warning                  │       │
-│  │   - Decision Confidence Validation               │       │
-│  └──────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## What's Been Implemented
 
-### 2026-04-02: Phase T3 — Data Validation Layer (COMPLETE)
+### 2026-04-02: Phase T4 — Timeframe Selector (COMPLETE)
 
-**New Files Created:**
+**Backend Changes:**
+- `terminal_state_engine.py`: Added timeframe as system parameter
+- `terminal_state_routes.py`: Added `?timeframe=` query param
+- `data_validator.py`: Added `validate_timeframe_consistency()`
+- `reconciliation_engine.py`: Timeframe in validation response
+
+**Frontend Changes:**
+- `TradingTerminal.jsx`: Timeframe state, selector UI, badge in header
+- `TradingChart.jsx`: Timeframe-aware candle fetching
+
+**Timeframe Mapping (Coinbase):**
+- 1H → 1h (168 candles = 7 days)
+- 4H → 6h (120 candles = 30 days) *closest available*
+- 1D → 1d (90 candles = 90 days)
+
+**API:**
 ```
-/app/backend/modules/trading_terminal/validation/
-├── __init__.py
-├── validation_types.py       # ValidationResult, ValidationSeverity
-├── data_validator.py         # Core validation logic
-└── reconciliation_engine.py  # Aggregates all validations
+GET /api/terminal/state/BTCUSDT?timeframe=1H
+GET /api/terminal/state/BTCUSDT?timeframe=4H (default)
+GET /api/terminal/state/BTCUSDT?timeframe=1D
 ```
 
-**Validation Checks:**
-1. **ENTRY_PRICE_MISMATCH** - Entry deviates >20% from market (CRITICAL)
-2. **POSITION_SYMBOL_MISMATCH** - Position symbol != terminal symbol (CRITICAL)
-3. **SIMULATION_MODE** - Using mock/simulated data (WARNING)
-4. **HIGH_CONFIDENCE_MOCK** - High confidence with simulated data (WARNING)
-5. **INVALID_STOP_LEVEL** - Stop > Entry (CRITICAL)
-6. **INVALID_TARGET_LEVEL** - Target < Entry (CRITICAL)
-
-**Frontend Updates:**
-- ValidationBlock component shows errors/warnings
-- Chart now uses Coinbase live data
-- Execution overlays (Entry, Stop, Target) visible on chart
-
-**Validation Response:**
+**Response includes:**
 ```json
 {
-  "validation": {
-    "is_valid": true,
-    "critical_count": 0,
-    "warning_count": 2,
-    "info_count": 3,
-    "live_price": 66677.54,
-    "price_source": "coinbase",
-    "issues": [...]
-  }
+  "timeframe": "4H",
+  "execution": { "timeframe": "4H", ... },
+  "validation": { "timeframe": "4H", ... }
 }
 ```
 
+### 2026-04-02: Phase T3 — Data Validation Layer (COMPLETE)
+- Entry vs Market price check (20% threshold)
+- Position vs Symbol check
+- Mock data warnings
+- Timeframe consistency validation
+
 ### Previous Phases (Completed)
 - Phase T2: Terminal State Orchestrator
-- Phase 5.1: Live Microstructure (WebSocket + REST + Mock fallback)
+- Phase 5.1: Live Microstructure
 - Phase 4.1-4.8.4: Entry Timing Stack
-- Phase 3.1-3.4: Action Engine, Policy Guard, Audit/Rollback, Scheduler
-- Phase 2.1-2.9: Prediction V2, Trade Setup, Execution, Portfolio, Risk, Calibration
+- Phase 3.1-3.4: Action Engine, Policy Guard, Audit/Rollback
+- Phase 2.1-2.9: Prediction V2, Execution, Portfolio, Risk
 
 ## Test Results
-- Phase T3: Backend 100%, Frontend 100%, Integration 100%
+- Phase T4: Backend 100%, Frontend 95%
 
 ## Prioritized Backlog
 
 ### P0 (Next Immediate)
-1. **Timeframe Selector** - 1H / 4H / 1D for chart and analysis
-2. **WebSocket Real-time** - Replace polling with push notifications
+1. **WebSocket Real-time** - Replace 3s polling with push
+2. **Alert System** - Price near entry, validation errors, decision changes
 
 ### P1 Priority
-1. Deploy to non-restricted region for live Binance data
-2. Real execution integration
-3. Order lifecycle states (pending, filled, partial, cancelled)
+1. MTF (Multi-Timeframe) analysis layer
+2. Order lifecycle states
+3. Real execution integration
 
 ### P2 Priority
 1. Trading history view
 2. Export/share functionality
-3. Mobile responsiveness
 
 ## Tech Stack
 - Backend: FastAPI + Python + aiohttp
 - Database: MongoDB
 - Frontend: React + Tailwind CSS + lightweight-charts
-- Data: Coinbase API (live), Binance API (mock due to geo-restriction)
+- Data: Coinbase API (live)
 
 ---
 *Last Updated: 2026-04-02*
-*Phase T3 Data Validation Layer COMPLETE*
+*Phase T4 Timeframe Selector COMPLETE*
