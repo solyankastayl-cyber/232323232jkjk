@@ -51,6 +51,20 @@ let webpackConfig = {
         ],
       };
 
+      // Fix CSS minimizer "Unexpected '/'" error in production builds
+      if (webpackConfig.optimization && webpackConfig.optimization.minimizer) {
+        webpackConfig.optimization.minimizer = webpackConfig.optimization.minimizer.map(plugin => {
+          if (plugin.constructor && plugin.constructor.name === 'CssMinimizerPlugin') {
+            return new (require('css-minimizer-webpack-plugin'))({
+              minimizerOptions: {
+                preset: ['default', { discardComments: { removeAll: true } }],
+              },
+            });
+          }
+          return plugin;
+        });
+      }
+
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
@@ -82,7 +96,7 @@ webpackConfig.devServer = (devServerConfig) => {
 };
 
 // Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
+if (isDevServer && process.env.DISABLE_VISUAL_EDITS !== 'true') {
   try {
     const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
     webpackConfig = withVisualEdits(webpackConfig);
@@ -96,5 +110,17 @@ if (isDevServer) {
     }
   }
 }
+
+// Allow all hosts for dev server and disable error overlay
+webpackConfig.devServer = {
+  ...webpackConfig.devServer,
+  allowedHosts: 'all',
+  client: {
+    overlay: false,  // Disable error overlay
+    webSocketURL: 'auto://0.0.0.0:0/ws',  // Fix HMR websocket
+  },
+  hot: false,  // Disable HMR to prevent overlay issues
+  liveReload: true,  // Use simpler live reload instead
+};
 
 module.exports = webpackConfig;

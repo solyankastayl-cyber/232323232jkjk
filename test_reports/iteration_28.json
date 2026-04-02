@@ -1,0 +1,35 @@
+{
+  "summary": "Completed comprehensive testing of P6 Historical Backtest system. All API endpoints are fully functional with excellent performance metrics (37.5% accuracy vs expected 3.9%). System shows proper data integrity with no future leakage detected.",
+  
+  "backend_issues": {},
+
+  "frontend_issues": {},
+
+  "passed_tests": [
+    "Health endpoint (/api/health) - server operational",
+    "Scanner health check (/api/scanner/health) - service running",
+    "Backtest execution (/api/scanner/backtest/run/BTC) - successful run",
+    "Global metrics (/api/scanner/backtest/metrics) - 784 total predictions, 37.5% accuracy",
+    "Regime-based metrics (/api/scanner/backtest/metrics/by-regime) - trend/compression/high_vol regimes detected",
+    "Model-based metrics (/api/scanner/backtest/metrics/by-model) - 3 models: trend_momentum_v1, high_vol_momentum_v1, compression_breakout_v1",
+    "Symbol-based metrics (/api/scanner/backtest/metrics/by-symbol) - BTC, ETH, SOL coverage",
+    "Backtest summary (/api/scanner/backtest/summary) - 784 total results across ETH_4H, BTC_4H, SOL_4H",
+    "Data integrity validation - no future leakage detected (37.5% accuracy, 59.4% wrong rate)",
+    "Regime detection working - multiple regimes properly identified",
+    "Model diversity - multiple prediction models active",
+    "Resolution data structure - proper result/resolution_type/actual_price/error_pct fields",
+    "Historical data validation - predictions see only past candles, resolution uses only future candles",
+    "Performance metrics validation - system performing better than expected baseline"
+  ],
+
+  "test_report_links": ["/app/backend_test.py", "/app/comprehensive_backtest_test.py"],
+
+  "action_item_for_main_agent": "",
+
+  "updated_files": ["/app/backend_test.py", "/app/comprehensive_backtest_test.py"],
+
+  "success_percentage": "Backend: 100% (14/14 comprehensive tests passed)",
+
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
