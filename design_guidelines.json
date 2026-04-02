@@ -1,0 +1,79 @@
+{
+  "theme": "Light Content with Dark Sidebar",
+  "archetype": "Archetype 4: Swiss & High-Contrast",
+  "design_philosophy": "Research ≠ Trading. Trading Terminal = pure execution, strict minimum UI, action-focused. Zero distractions.",
+  "colors": {
+    "background_sidebar": "bg-gray-900 (#111827)",
+    "text_sidebar": "text-gray-100 (#F3F4F6)",
+    "background_content": "bg-gray-50 (#F9FAFB)",
+    "background_block": "bg-white (#FFFFFF)",
+    "text_main": "text-gray-900 (#111827)",
+    "text_muted": "text-gray-500 (#6B7280)",
+    "border_light": "border-gray-200 (#E5E7EB)",
+    "border_dark": "border-gray-800 (#1F2937)",
+    "status_go": "bg-green-600 text-white",
+    "status_wait": "bg-amber-500 text-white",
+    "status_skip": "bg-gray-400 text-white",
+    "primary_accent": "bg-blue-600 text-white"
+  },
+  "typography": {
+    "font_family_main": "Gilroy, sans-serif",
+    "font_family_mono": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "h1": "text-xl md:text-2xl font-bold tracking-tight text-gray-900 uppercase",
+    "h2": "text-xs font-semibold tracking-widest text-gray-500 uppercase",
+    "body": "text-sm text-gray-800",
+    "data_value": "text-lg font-bold tabular-nums text-gray-900 tracking-tight"
+  },
+  "layout_and_spacing": {
+    "sidebar_width": "w-16 lg:w-56",
+    "container_padding": "p-4 md:p-6",
+    "gap": "gap-4 md:gap-6",
+    "block_style": "bg-white border border-gray-200 rounded-sm shadow-sm flex flex-col overflow-hidden",
+    "grid_system": "grid grid-cols-1 lg:grid-cols-12"
+  },
+  "components_structure": {
+    "password_gate": {
+      "layout": "fixed inset-0 z-50 flex items-center justify-center bg-gray-900/95 backdrop-blur-md",
+      "card": "bg-gray-900 p-8 border border-gray-700 rounded-sm shadow-2xl max-w-sm w-full flex flex-col gap-6",
+      "input": "w-full border-b border-gray-600 bg-transparent focus:border-white px-0 py-3 outline-none text-3xl tracking-[0.5em] text-center transition-colors font-mono text-white placeholder:text-gray-700",
+      "button": "w-full py-3 bg-white text-gray-900 font-bold uppercase tracking-widest text-sm hover:bg-gray-200 transition-colors"
+    },
+    "terminal_layout": {
+      "wrapper": "flex h-screen w-full bg-gray-50 overflow-hidden font-sans",
+      "sidebar": "h-full bg-gray-900 border-r border-gray-800 flex-shrink-0 flex flex-col",
+      "main_area": "flex-1 flex flex-col h-full overflow-hidden"
+    },
+    "top_bar": {
+      "wrapper": "h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6 flex-shrink-0",
+      "title": "text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-gray-900",
+      "status_indicators": "flex gap-4 text-xs font-bold uppercase tracking-wider"
+    },
+    "grid_blocks": {
+      "chart_block": "lg:col-span-8 lg:row-span-2 min-h-[400px]",
+      "decision_block": "lg:col-span-4 lg:row-span-1 p-5",
+      "why_block": "lg:col-span-4 lg:row-span-1 p-5",
+      "execution_block": "lg:col-span-4 lg:row-span-2 p-5 border-l-4 border-l-blue-600",
+      "microstructure_block": "lg:col-span-8 lg:row-span-1 p-5",
+      "positions_block": "lg:col-span-12 lg:row-span-1 p-5 min-h-[250px]"
+    }
+  },
+  "interactive_states": {
+    "button_hover": "hover:bg-gray-800 hover:text-white transition-colors",
+    "input_focus": "focus:ring-1 focus:ring-gray-900 focus:border-gray-900",
+    "row_hover": "hover:bg-gray-50 transition-colors cursor-default"
+  },
+  "image_urls": [],
+  "instructions_to_main_agent": [
+    "1. Routing: Create an isolated route for '/trading'. It must NOT be wrapped in the standard application layout (App.jsx shell). The terminal needs full screen access without standard app navigation.",
+    "2. Component - PasswordGate: Implement a password prompt overlay. In development mode (NODE_ENV === 'development'), allow bypassing or auto-fill. Use a dark theme strictly for the gate (bg-gray-900) to contrast with the terminal entry.",
+    "3. Layout - TradingTerminalLayout: Build a two-column flex layout. Left is the dark Sidebar (bg-gray-900, matching existing tech-analysis concept). Right is the light workspace (bg-gray-50) using a 100vh height and flex-col for inner scrolling.",
+    "4. Grid Framework: Use a 12-column CSS grid (bento-box style) with 'gap-4' inside the main workspace. Apply 'bg-white', 'border-gray-200', and 'rounded-sm' to all functional blocks. Maintain strict 1px flat borders with zero soft shadows.",
+    "5. Block - Top Bar: A 56px fixed header in the workspace holding the terminal title and global socket connection status.",
+    "6. Block - Chart: Allocate col-span-8 and row-span-2. Render a placeholder with grid lines or an embedded TradingView light-theme iframe.",
+    "7. Block - Decision & Why: Display the engine decision (GO_FULL, GO_REDUCED, WAIT, SKIP). Use massive typography (text-4xl or larger) for the decision string and a distinct background color based on the status. List the 'WHY' reasons as dense bullet points or minimal badges.",
+    "8. Block - Execution: Focus purely on action. Dense inputs (h-8, minimal padding) for Mode, Size Multiplier, Entry/SL/TP fields. Include a high-contrast 'EXECUTE' button.",
+    "9. Block - Microstructure: Render Imbalance, Spread, Liquidity state using horizontal progress bars or mini-sparklines. Keep data tabular and dense.",
+    "10. Block - Positions: Bottom-spanning table showing active trades and PnL. Emphasize PnL colors (Green/Red) heavily.",
+    "11. Testing: MUST attach 'data-testid' to every interactive element (Gate input, Submit button, Execution inputs, Execute trade button, Position rows)."
+  ]
+}
